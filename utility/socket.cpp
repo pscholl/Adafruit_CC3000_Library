@@ -72,7 +72,7 @@
               #define write(sd, buf, len, flags) send(sd, buf, len, flags)
 #endif
 
-//#define SEND_NON_BLOCKING 1
+#define SEND_NON_BLOCKING 1
 #define SOCKET_OPEN_PARAMS_LEN				(12)
 #define SOCKET_CLOSE_PARAMS_LEN				(4)
 #define SOCKET_ACCEPT_PARAMS_LEN			(4)
