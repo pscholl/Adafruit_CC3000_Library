@@ -31,7 +31,7 @@ typedef char PROGMEM prog_char;
 #ifndef _CC3000_DEBUG
 #define _CC3000_DEBUG
 
-#define DEBUG_MODE                      (1)
+#define DEBUG_MODE                      (0)
 
 int getFreeRam(void);
 void displayFreeRam(void);

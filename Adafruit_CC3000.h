@@ -172,4 +172,5 @@ class Adafruit_CC3000 {
 
 extern Print* CC3KPrinter;
 
+q
 #endif
