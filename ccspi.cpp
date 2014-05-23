@@ -48,6 +48,10 @@
 #include "utility/cc3000_common.h"
 #include "utility/debug.h"
 
+#define NO_PORTD_PINCHANGES // to indicate that port d will not be used for
+#define NO_PORTC_PINCHANGES // to indicate that port c will not be used for
+#include "utility/PinChangeInt.h"
+
 extern uint8_t g_csPin, g_irqPin, g_vbatPin, g_IRQnum, g_SPIspeed;
 
 #define READ                            (3)
@@ -109,12 +113,13 @@ uint8_t ccspi_mySPICTRL, ccspi_oldSPICTRL;
 #endif
 
 // CC3000 chip select + SPI config
+// XXX: incompatible pins
 #define CC3000_ASSERT_CS {     \
-  digitalWrite(g_csPin, LOW);  \
+  PORTD &= ~(1<<5); \
   SpiConfigPush(); }
 // CC3000 chip deselect + SPI restore
 #define CC3000_DEASSERT_CS {   \
-  digitalWrite(g_csPin, HIGH); \
+  PORTD |= (1<<5); \
   SpiConfigPop(); }
 
 
@@ -233,7 +238,8 @@ int init_spi(void)
   delay(500);
 
   /* Set CS pin to output (don't de-assert yet) */
-  pinMode(g_csPin, OUTPUT);
+  //pinMode(g_csPin, OUTPUT);
+  DDRD |= (1<<5); // PD5 as output
 
   /* Set interrupt/gpio pin to input */
 #if defined(INPUT_PULLUP)
@@ -305,7 +311,7 @@ long SpiWrite(unsigned char *pUserBuffer, unsigned short usLength)
   unsigned char ucPad = 0;
 
   DEBUGPRINT_F("\tCC3000: SpiWrite\n\r");
-  
+
   /* Figure out the total length of the packet in order to figure out if there is padding or not */
   if(!(usLength & 0x0001))
   {
@@ -325,13 +331,12 @@ long SpiWrite(unsigned char *pUserBuffer, unsigned short usLength)
    * occurred - and we will be stuck here forever! */
   if (wlan_tx_buffer[CC3000_TX_BUFFER_SIZE - 1] != CC3000_BUFFER_MAGIC_NUMBER)
   {
-    DEBUGPRINT_F("\tCC3000: Error - No magic number found in SpiWrite\n\r");
-    while (1);
+    while (1) DEBUGPRINT_F("\tCC3000: Error - No magic number found in SpiWrite\n\r");
   }
 
   if (sSpiInformation.ulSpiState == eSPI_STATE_POWERUP)
   {
-    while (sSpiInformation.ulSpiState != eSPI_STATE_INITIALIZED);
+    while (sSpiInformation.ulSpiState != eSPI_STATE_INITIALIZED) DEBUGPRINT_F("\tCC3000: waiting for SPI powerup\n");
   }
 
   if (sSpiInformation.ulSpiState == eSPI_STATE_INITIALIZED)
@@ -506,7 +511,7 @@ void SpiPauseSpi(void)
   DEBUGPRINT_F("\tCC3000: SpiPauseSpi\n\r");
 
   ccspi_int_enabled = 0;
-  detachInterrupt(g_IRQnum);
+  PCintPort::detachInterrupt(g_irqPin);
 }
 
 /**************************************************************************/
@@ -519,7 +524,7 @@ void SpiResumeSpi(void)
   DEBUGPRINT_F("\tCC3000: SpiResumeSpi\n\r");
 
   ccspi_int_enabled = 1;
-  attachInterrupt(g_IRQnum, SPI_IRQ, FALLING);
+  PCintPort::attachInterrupt(g_irqPin, &SPI_IRQ, FALLING);
 }
 
 /**************************************************************************/
@@ -618,7 +623,7 @@ void WlanInterruptEnable()
   DEBUGPRINT_F("\tCC3000: WlanInterruptEnable.\n\r");
   // delay(100);
   ccspi_int_enabled = 1;
-  attachInterrupt(g_IRQnum, SPI_IRQ, FALLING);
+  PCintPort::attachInterrupt(g_irqPin, &SPI_IRQ, FALLING);
 }
 
 /**************************************************************************/
@@ -630,7 +635,7 @@ void WlanInterruptDisable()
 {
   DEBUGPRINT_F("\tCC3000: WlanInterruptDisable\n\r");
   ccspi_int_enabled = 0;
-  detachInterrupt(g_IRQnum);
+  PCintPort::detachInterrupt(g_irqPin);
 }
 
 //*****************************************************************************
@@ -696,7 +701,7 @@ void SPI_IRQ(void)
   ccspi_is_in_irq = 1;
 
   DEBUGPRINT_F("\tCC3000: Entering SPI_IRQ\n\r");
-    
+
   if (sSpiInformation.ulSpiState == eSPI_STATE_POWERUP)
   {
     /* IRQ line was low ... perform a callback on the HCI Layer */

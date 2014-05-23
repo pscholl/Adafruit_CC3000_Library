@@ -249,24 +249,25 @@ bool Adafruit_CC3000::begin(uint8_t patchReq, bool useSmartConfigData)
 {
   if (_initialised) return true;
 
-  #ifndef CORE_ADAX
-  // determine irq #
-  for (uint8_t i=0; i<sizeof(dreqinttable); i+=2) {
-    if (g_irqPin == dreqinttable[i]) {
-      g_IRQnum = dreqinttable[i+1];
-    }
-  }
-  if (g_IRQnum == 0xFF) {
-    CHECK_PRINTER {
-      CC3KPrinter->println(F("IRQ pin is not an INT pin!"));
-    }
-    return false;
-  }
-  #else
-  g_IRQnum = g_irqPin;
-  // (almost) every single pin on Xmega supports interrupt
-  #endif
-
+  //#ifndef CORE_ADAX
+  //// determine irq #
+  //for (uint8_t i=0; i<sizeof(dreqinttable); i+=2) {
+  //  if (g_irqPin == dreqinttable[i]) {
+  //    g_IRQnum = dreqinttable[i+1];
+  //  }
+  //}
+  //if (g_IRQnum == 0xFF) {
+  //  CHECK_PRINTER {
+  //    CC3KPrinter->println(F("IRQ pin is not an INT pin!"));
+  //  }
+  //  DEBUGPRINT_F("pin's not irq-able!\n");
+  //  return false;
+  //}
+  //#else
+  //g_IRQnum = g_irqPin;
+  //// (almost) every single pin on Xmega supports interrupt
+  //#endif
+  
   init_spi();
   
   DEBUGPRINT_F("init\n\r");
@@ -279,7 +280,7 @@ bool Adafruit_CC3000::begin(uint8_t patchReq, bool useSmartConfigData)
   DEBUGPRINT_F("start\n\r");
 
   wlan_start(patchReq);
-  
+
   DEBUGPRINT_F("ioctl\n\r");
   // Check if we should erase previous stored connection details
   // (most likely written with data from the SmartConfig app)
