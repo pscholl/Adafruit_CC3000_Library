@@ -1346,7 +1346,17 @@ bool Adafruit_CC3000_Client::connected(void) {
 
 int16_t Adafruit_CC3000_Client::write(const void *buf, uint16_t len, uint32_t flags)
 {
-  return send(_socket, buf, len, flags);
+  int16_t r;
+
+//  while (tSLInformation.usNumberOfFreeBuffers < 5)
+//    delay(1);
+//
+  r = send(_socket, buf, len, flags);
+
+  while (tSLInformation.usNumberOfFreeBuffers < 5)
+    delay(1);
+
+  return r;
 }
 
 
