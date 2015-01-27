@@ -1,3 +1,5 @@
+#define SEND_TIMEOUT_MS (30 * 1000)
+
 /*****************************************************************************
 *
 *  socket.c  - CC3000 Host Driver Implementation.
@@ -124,6 +126,11 @@ HostFlowControlConsumeBuff(int sd)
 {
 #ifndef SEND_NON_BLOCKING
 	/* wait in busy loop */
+
+#ifdef SEND_TIMEOUT_MS
+	unsigned long startTime = millis();
+#endif
+
 	do
 	{
 		// In case last transmission failed then we will return the last failure 
@@ -138,6 +145,14 @@ HostFlowControlConsumeBuff(int sd)
 		
 		if(SOCKET_STATUS_ACTIVE != get_socket_active_status(sd))
 			return -1;
+
+#ifdef SEND_TIMEOUT_MS
+		if ((millis() - startTime) > SEND_TIMEOUT_MS)
+		{
+			return -3; /* Timeout */
+		}
+#endif
+
 	} while(0 == tSLInformation.usNumberOfFreeBuffers);
 	
 	tSLInformation.usNumberOfFreeBuffers--;

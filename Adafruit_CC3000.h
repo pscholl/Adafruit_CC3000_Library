@@ -90,6 +90,8 @@ class Adafruit_CC3000_Client : public Print {
 
   size_t fastrprint(const char *str);
   size_t fastrprintln(const char *str);
+  size_t fastrprint(char *str);
+  size_t fastrprintln(char *str);
   size_t fastrprint(const __FlashStringHelper *ifsh);
   size_t fastrprintln(const __FlashStringHelper *ifsh);
 
@@ -116,7 +118,7 @@ class Adafruit_CC3000_Client : public Print {
 class Adafruit_CC3000 {
   public:
   Adafruit_CC3000(uint8_t csPin, uint8_t irqPin, uint8_t vbatPin, uint8_t spispeed = SPI_CLOCK_DIVIDER);
-    bool     begin(uint8_t patchReq = 0, bool useSmartConfigData = false);
+    bool     begin(uint8_t patchReq = 0, bool useSmartConfigData = false, const char *_deviceName = NULL);
     void     reboot(uint8_t patchReq = 0);
     void     stop(void);
     bool     disconnect(void);
@@ -128,6 +130,8 @@ class Adafruit_CC3000 {
     uint32_t IP2U32(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
     bool     getMacAddress(uint8_t address[6]);
     bool     setMacAddress(uint8_t address[6]);
+    bool     setStaticIPAddress(uint32_t ip, uint32_t subnetMask, uint32_t defaultGateway, uint32_t dnsServer);
+    bool     setDHCP();
 
     bool     connectToAP(const char *ssid, const char *key, uint8_t secmode);
     bool     connectSecure(const char *ssid, const char *key, int32_t secMode);
@@ -149,7 +153,7 @@ class Adafruit_CC3000 {
     uint8_t  getNextSSID(uint8_t *rssi, uint8_t *secMode, char *ssidname);
 
     bool     listSSIDResults(void);
-    bool     startSmartConfig(bool enableAES);
+    bool     startSmartConfig(const char *_deviceName = NULL, const char *smartConfigKey = NULL);
 
     bool     getIPConfig(tNetappIpconfigRetArgs *ipConfig);
 

@@ -141,13 +141,7 @@ private:
 }cc3000Bitset;
 
 volatile long ulSocket;
-
-char _deviceName[] = "CC3000";
 char _cc3000_prefix[] = { 'T', 'T', 'T' };
-const unsigned char _smartConfigKey[] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-                                          0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 };
-                                          // AES key for smart config = "0123456789012345"
-
 Print* CC3KPrinter; // user specified output stream for general messages and debug
 
 /* *********************************************************************** */
@@ -245,7 +239,7 @@ Adafruit_CC3000::Adafruit_CC3000(uint8_t csPin, uint8_t irqPin, uint8_t vbatPin,
               clean connection
 */
 /**************************************************************************/
-bool Adafruit_CC3000::begin(uint8_t patchReq, bool useSmartConfigData)
+bool Adafruit_CC3000::begin(uint8_t patchReq, bool useSmartConfigData, const char *_deviceName)
 {
   if (_initialised) return true;
 
@@ -313,7 +307,7 @@ bool Adafruit_CC3000::begin(uint8_t patchReq, bool useSmartConfigData)
 
   _initialised = true;
 
-  // Wait for re-connection is we're using SmartConfig data
+  // Wait for re-connection if we're using SmartConfig data
   if (useSmartConfigData)
   {
     // Wait for a connection
@@ -587,6 +581,61 @@ bool Adafruit_CC3000::setMacAddress(uint8_t address[6])
 
 /**************************************************************************/
 /*!
+    @brief    Set the CC3000 to use a static IP address when it's connected
+              to the network.  Use the cc3000.IP2U32 function to specify the
+              IP, subnet mask (typically 255.255.255.0), default gateway
+              (typically 192.168.1.1), and DNS server (can use Google's DNS
+              of 8.8.8.8 or 8.8.4.4).  Note that the static IP configuration
+              will be saved in the CC3000's non-volatile storage and reused
+              on next reconnect.  This means you only need to call this once
+              and the CC3000 will remember the setting forever.  To revert
+              back to use DHCP, call the cc3000.setDHCP function.
+
+    @param    ip               IP address
+    @param    subnetmask       Subnet mask
+    @param    defaultGateway   Default gateway
+    @param    dnsServer        DNS server
+
+    @returns  False if an error occurred, true if successfully set.
+*/
+/**************************************************************************/
+bool Adafruit_CC3000::setStaticIPAddress(uint32_t ip, uint32_t subnetMask, uint32_t defaultGateway, uint32_t dnsServer)
+{
+  // Reverse order of bytes in parameters so IP2U32 packed values can be used with the netapp_dhcp function.
+  ip = (ip >> 24) | ((ip >> 8) & 0x0000FF00L) | ((ip << 8) & 0x00FF0000L) | (ip << 24);
+  subnetMask = (subnetMask >> 24) | ((subnetMask >> 8) & 0x0000FF00L) | ((subnetMask << 8) & 0x00FF0000L) | (subnetMask << 24);
+  defaultGateway = (defaultGateway >> 24) | ((defaultGateway >> 8) & 0x0000FF00L) | ((defaultGateway << 8) & 0x00FF0000L) | (defaultGateway << 24);
+  dnsServer = (dnsServer >> 24) | ((dnsServer >> 8) & 0x0000FF00L) | ((dnsServer << 8) & 0x00FF0000L) | (dnsServer << 24);
+  // Update DHCP state with specified values.
+  if (netapp_dhcp(&ip, &subnetMask, &defaultGateway, &dnsServer) != 0) {
+    return false;
+  }
+  // Reset CC3000 to use modified setting.
+  wlan_stop();
+  delay(200);
+  wlan_start(0);
+  return true;
+}
+
+/**************************************************************************/
+/*!
+    @brief    Set the CC3000 to use request an IP and network configuration
+              using DHCP.  Note that this DHCP state will be saved in the 
+              CC3000's non-volatile storage and reused on next reconnect.
+              This means you only need to call this once and the CC3000 will 
+              remember the setting forever.  To switch to use a static IP,
+              call the cc3000.setStaticIPAddress function.
+
+    @returns  False if an error occurred, true if successfully set.
+*/
+/**************************************************************************/
+bool Adafruit_CC3000::setDHCP()
+{
+  return setStaticIPAddress(0,0,0,0);
+}
+
+/**************************************************************************/
+/*!
     @brief   Reads the current IP address
 
     @returns  False if an error occured!
@@ -755,8 +804,9 @@ uint8_t Adafruit_CC3000::getNextSSID(uint8_t *rssi, uint8_t *secMode, char *ssid
 */
 /**************************************************************************/
 #ifndef CC3000_TINY_DRIVER
-bool Adafruit_CC3000::startSmartConfig(bool enableAES)
+bool Adafruit_CC3000::startSmartConfig(const char *_deviceName, const char *smartConfigKey)
 {
+  bool enableAES = smartConfigKey != NULL;
   cc3000Bitset.clear();
 
   uint32_t   timeout = 0;
@@ -792,10 +842,12 @@ bool Adafruit_CC3000::startSmartConfig(bool enableAES)
   CHECK_SUCCESS(nvmem_create_entry(NVMEM_AES128_KEY_FILEID,16),
                 "Failed create NVMEM entry", false);
   
-  // write AES key to NVMEM
-  CHECK_SUCCESS(aes_write_key((unsigned char *)(&_smartConfigKey[0])),
-                "Failed writing AES key", false);  
-  
+  if (enableAES)
+  {
+    // write AES key to NVMEM
+    CHECK_SUCCESS(aes_write_key((unsigned char *)(smartConfigKey)),
+                  "Failed writing AES key", false);  
+  }  
   //CC3KPrinter->println("Set prefix");
   // Wait until CC3000 is disconnected
   CHECK_SUCCESS(wlan_smart_config_set_prefix((char *)&_cc3000_prefix),
@@ -803,7 +855,7 @@ bool Adafruit_CC3000::startSmartConfig(bool enableAES)
 
   //CC3KPrinter->println("Start config");
   // Start the SmartConfig start process
-  CHECK_SUCCESS(wlan_smart_config_start(0),
+  CHECK_SUCCESS(wlan_smart_config_start(enableAES),
                 "Failed starting smart config", false);
 
   // Wait for smart config process complete (event in CC3000_UsynchCallback)
@@ -1398,7 +1450,7 @@ size_t Adafruit_CC3000_Client::fastrprintln(const __FlashStringHelper *ifsh)
 {
   size_t r = 0;
   r = fastrprint(ifsh);
-  r+= fastrprint(F("\n\r"));
+  r+= fastrprint(F("\r\n"));
   return r;
 }
 
@@ -1409,7 +1461,7 @@ size_t Adafruit_CC3000_Client::fastrprintln(const char *str)
   if (len > 0) {
     if ((r = write(str, len, 0)) <= 0) return 0;
   }
-  if ((r += write("\n\r", 2, 0)) <= 0) return 0;  // meme fix
+  if ((r += write("\r\n", 2, 0)) <= 0) return 0;  // meme fix
   return r;
 }
 
@@ -1422,6 +1474,24 @@ size_t Adafruit_CC3000_Client::fastrprint(const char *str)
   else {
     return 0;
   }
+}
+
+size_t Adafruit_CC3000_Client::fastrprint(char *str)
+{
+  size_t len = strlen(str);
+  if (len > 0) {
+    return write(str, len, 0);
+  }
+  else {
+    return 0;
+  }
+}
+
+size_t Adafruit_CC3000_Client::fastrprintln(char *str) {
+  size_t r = 0;
+  r = fastrprint(str);
+  r+= fastrprint(F("\r\n"));
+  return r;
 }
 
 int16_t Adafruit_CC3000_Client::read(void *buf, uint16_t len, uint32_t flags) 
